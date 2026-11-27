@@ -70,7 +70,13 @@ def runner_fingerprint(runner):
         },
         "adapter": getattr(adapter_cfg, "__dict__", str(adapter_cfg)),
     }
-    return hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(data, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
+def dispose_runner(runner):
+    runner.adapter.disconnect()
 
 
 def main():
@@ -92,45 +98,39 @@ def main():
     runners, threads, fingerprints = {}, {}, {}
 
     def stop_runner(key):
-        runner = runners[key]
-        thread = threads[key]
+        runner, thread = runners[key], threads[key]
         runner.stop_event.set()
         thread.join(timeout=5)
         if thread.is_alive():
             raise RuntimeError(f"PLC worker did not stop cleanly: {key}")
-        runner.adapter.disconnect()
-        del runners[key]
-        del threads[key]
-        del fingerprints[key]
+        dispose_runner(runner)
+        del runners[key], threads[key], fingerprints[key]
 
     def start_runner(key, runner):
         runner.stop_event = threading.Event()
         thread = threading.Thread(
-            target=runner.run,
-            args=(runner.stop_event,),
-            daemon=True,
-            name=f"collector-{key[1]}",
+            target=runner.run, args=(runner.stop_event,),
+            daemon=True, name=f"collector-{key[1]}",
         )
         runners[key], threads[key] = runner, thread
         fingerprints[key] = runner_fingerprint(runner)
         thread.start()
 
     def sync_configuration():
-        # Build full desired state before touching the currently running state.
+        # Fetch/build before mutating current workers; transient API errors leave
+        # the currently running PLC workers untouched.
         desired = build_runners(api.configuration(), api, queue)
         desired_fingerprints = {
             key: runner_fingerprint(runner) for key, runner in desired.items()
         }
-
         for key in list(runners):
             if key not in desired or fingerprints.get(key) != desired_fingerprints.get(key):
                 stop_runner(key)
-
         for key, runner in desired.items():
             if key not in runners:
                 start_runner(key, runner)
             else:
-                runner.adapter.disconnect()
+                dispose_runner(runner)
         return len(runners)
 
     logging.info("Starting collector in %s mode", mode)
