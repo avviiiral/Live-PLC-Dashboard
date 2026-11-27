@@ -13,7 +13,6 @@ python backend\manage.py createsuperuser
 
 Edit the single root `.env`. Use `COLLECTOR_MODE=local` when backend and collector share a machine. Use `COLLECTOR_MODE=lan` on a separate factory PC, with backend LAN URL and that machine's persistent token.
 
-## Start
 Terminal 1 — backend:
 ```powershell
 python backend\manage.py runserver 127.0.0.1:8000
