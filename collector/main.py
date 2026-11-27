@@ -44,22 +44,31 @@ def build_runners(config, api, queue):
 
 
 def runner_fingerprint(runner):
-    """Include connection, tag and event settings so edits trigger safe restart."""
-    adapter_cfg = getattr(runner.adapter, "plc_config", None)
+    """Fingerprint effective config, including values not stored on detector."""
+    adapter_cfg = getattr(runner.adapter, "cfg", None) or getattr(
+        runner.adapter, "plc_config", None
+    )
     data = {
         "station": runner.station,
         "plc": runner.plc,
         "tags": [
             {
-                "name": tag.name, "address": tag.address,
-                "data_type": tag.data_type,
-                "scale": getattr(tag, "scale", 1),
-                "offset": getattr(tag, "offset", 0),
+                "id": tag.id, "name": tag.name, "address": tag.address,
+                "data_type": tag.data_type, "role": tag.role,
+                "scale": tag.scale, "offset": tag.offset,
             }
             for tag in runner.tags
         ],
         "interval": runner.interval,
-        "event": runner.detector.__dict__,
+        "event": {
+            "trigger_tag": runner.detector.trigger_tag,
+            "active_value": runner.detector.active_value,
+            "active_values": runner.detector.active_values,
+            "rearm_value": runner.detector.rearm_value,
+            "result_tag": runner.detector.result_tag,
+            "result_mapping": runner.detector.result_mapping,
+            "debounce_ms": runner.detector.debounce_ms,
+        },
         "adapter": getattr(adapter_cfg, "__dict__", str(adapter_cfg)),
     }
     return hashlib.sha256(
@@ -115,7 +124,6 @@ def main():
             if key not in runners:
                 start_runner(key, runner)
             else:
-                # Dispose the unused adapter constructed for the comparison.
                 runner.adapter.disconnect()
         return len(runners)
 
@@ -123,8 +131,8 @@ def main():
     backoff = 1
     while not stop.is_set():
         try:
-            plc_count = sync_configuration()
-            api.heartbeat({"plcs": plc_count, "queue_size": queue.size(), "mode": mode})
+            count = sync_configuration()
+            api.heartbeat({"plcs": count, "queue_size": queue.size(), "mode": mode})
             backoff = 1
             stop.wait(sync_interval)
         except Exception:
