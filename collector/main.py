@@ -1,9 +1,7 @@
-import json
 import logging
 import os
 import signal
 import threading
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -12,99 +10,111 @@ from collector.adapters.siemens_s7 import SiemensS7Adapter
 from collector.adapters.modbus_tcp import ModbusTCPAdapter
 from collector.communication.api_client import BackendClient
 from collector.core.types import PLCConfig, TagConfig
-from collector.storage.queue import PersistentEventQueue
 from collector.services.runner import StationRunner
+from collector.storage.queue import PersistentEventQueue
 
 
-def main():
-    load_dotenv()
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-
-    config_path = Path(os.getenv("COLLECTOR_CONFIG_PATH", "collector/config/example.json"))
-    if not config_path.exists():
-        raise RuntimeError(f"Collector config missing: {config_path}")
-
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    api = BackendClient(
-        os.getenv("COLLECTOR_API_BASE_URL") or config.get("backend_url"),
-        os.getenv("COLLECTOR_TOKEN") or config.get("collector_token"),
-    )
-    queue = PersistentEventQueue(
-        os.getenv("COLLECTOR_QUEUE_PATH", config.get("queue_path", "collector/data/queue.sqlite3"))
-    )
-
-    if not config.get("stations"):
-        raise RuntimeError("No stations configured; refusing to start")
-
-    stop = threading.Event()
-
-    def shutdown(signum, frame):
-        stop.set()
-
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
-
+def build_runners(config, api, queue):
+    """Create one isolated connection/detector per configured PLC."""
     adapters = {
-        "mock": lambda plc_config: MockPLCAdapter(plc_config=plc_config),
-        "s7": lambda plc_config: SiemensS7Adapter(plc_config),
-        "modbus_tcp": lambda plc_config: ModbusTCPAdapter(plc_config),
+        "mock": lambda cfg: MockPLCAdapter(plc_config=cfg),
+        "s7": lambda cfg: SiemensS7Adapter(cfg),
+        "modbus_tcp": lambda cfg: ModbusTCPAdapter(cfg),
     }
-
-    runners = []
-    for station in config["stations"]:
-        # A station may contain multiple independent PLCs. The legacy singular
-        # "plc" form remains supported for existing collector configurations.
-        plc_entries = station.get("plcs") or [station["plc"]]
-        for plc in plc_entries:
+    runners = {}
+    for station in config.get("stations", []):
+        for plc in station.get("plcs", []):
+            protocol = plc["protocol"]
+            if protocol not in adapters:
+                raise ValueError(f"Unsupported protocol: {protocol}")
             plc_config = PLCConfig(
-                plc["protocol"],
+                protocol,
                 plc["host"],
                 int(plc.get("port", 102)),
                 int(plc.get("rack", 0)),
                 int(plc.get("slot", 1)),
                 int(plc.get("unit_id", 1)),
             )
-            if plc_config.protocol not in adapters:
-                raise ValueError(f"Unsupported protocol {plc_config.protocol}")
-
             tags = [TagConfig(**tag) for tag in station["tags"]]
             runner = StationRunner(
                 station["station_id"],
                 plc["id"],
-                adapters[plc_config.protocol](plc_config),
+                adapters[protocol](plc_config),
                 tags,
                 station["event"],
                 api,
                 queue,
-                config.get("poll_interval_seconds", 1.0),
+                float(station.get("poll_interval_seconds", 1.0)),
             )
-            runners.append(runner)
-            logging.info(
-                "Configured station %s with PLC %s at %s",
-                station.get("station_name", station["station_id"]),
-                plc.get("name", plc["id"]),
-                plc["host"],
-            )
+            runners[(station["station_id"], plc["id"])] = runner
+    return runners
 
-    threads = [
-        threading.Thread(target=runner.run, args=(stop,), daemon=True)
-        for runner in runners
-    ]
-    for thread in threads:
-        thread.start()
 
-    try:
-        while not stop.wait(30):
-            try:
-                api.heartbeat({"queue_size": queue.size(), "plcs": len(runners)})
-            except Exception:
-                logging.exception("Collector heartbeat failed")
-    finally:
-        stop.set()
-        for thread in threads:
+def main():
+    load_dotenv()
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
+
+    mode = os.getenv("COLLECTOR_MODE", "local").strip().lower()
+    api = BackendClient(
+        os.getenv("COLLECTOR_API_BASE_URL", "http://127.0.0.1:8000"),
+        mode=mode,
+        token=os.getenv("COLLECTOR_TOKEN"),
+    )
+    queue = PersistentEventQueue(
+        os.getenv("COLLECTOR_QUEUE_PATH", "collector/data/queue.sqlite3")
+    )
+    sync_interval = max(float(os.getenv("COLLECTOR_SYNC_INTERVAL", "15")), 2.0)
+
+    stop = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    signal.signal(signal.SIGTERM, lambda *_: stop.set())
+    runners, threads = {}, {}
+
+    def sync_configuration():
+        desired = build_runners(api.configuration(), api, queue)
+
+        # Remove disabled/deleted assignments and stop their PLC workers.
+        for key in set(runners) - set(desired):
+            runner = runners.pop(key)
+            thread = threads.pop(key)
+            runner.stop_event.set()
             thread.join(timeout=5)
-        for runner in runners:
             runner.adapter.disconnect()
+
+        # Start only new PLCs. Existing runners keep their re-arm state.
+        for key in set(desired) - set(runners):
+            runner = desired[key]
+            runner.stop_event = threading.Event()
+            thread = threading.Thread(
+                target=runner.run,
+                args=(runner.stop_event,),
+                daemon=True,
+                name=f"collector-{key[1]}",
+            )
+            runners[key] = runner
+            threads[key] = thread
+            thread.start()
+        return len(runners)
+
+    logging.info("Starting collector in %s mode", mode)
+    backoff = 1
+    while not stop.is_set():
+        try:
+            plc_count = sync_configuration()
+            api.heartbeat(
+                {"plcs": plc_count, "queue_size": queue.size(), "mode": mode}
+            )
+            backoff = 1
+            stop.wait(sync_interval)
+        except Exception:
+            logging.exception("Collector configuration sync/heartbeat failed")
+            stop.wait(backoff)
+            backoff = min(backoff * 2, 30)
+
+    for key, runner in list(runners.items()):
+        runner.stop_event.set()
+        threads[key].join(timeout=5)
+        runner.adapter.disconnect()
 
 
 if __name__ == "__main__":
