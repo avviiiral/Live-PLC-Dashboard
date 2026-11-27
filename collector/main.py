@@ -92,14 +92,16 @@ def main():
     runners, threads, fingerprints = {}, {}, {}
 
     def stop_runner(key):
-        runner = runners.pop(key)
-        thread = threads.pop(key)
-        fingerprints.pop(key, None)
+        runner = runners[key]
+        thread = threads[key]
         runner.stop_event.set()
         thread.join(timeout=5)
         if thread.is_alive():
             raise RuntimeError(f"PLC worker did not stop cleanly: {key}")
         runner.adapter.disconnect()
+        del runners[key]
+        del threads[key]
+        del fingerprints[key]
 
     def start_runner(key, runner):
         runner.stop_event = threading.Event()
@@ -114,14 +116,16 @@ def main():
         thread.start()
 
     def sync_configuration():
-        # If config fetch/build fails, no running PLC workers are modified.
+        # Build full desired state before touching the currently running state.
         desired = build_runners(api.configuration(), api, queue)
         desired_fingerprints = {
             key: runner_fingerprint(runner) for key, runner in desired.items()
         }
+
         for key in list(runners):
             if key not in desired or fingerprints.get(key) != desired_fingerprints.get(key):
                 stop_runner(key)
+
         for key, runner in desired.items():
             if key not in runners:
                 start_runner(key, runner)
