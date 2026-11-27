@@ -19,10 +19,13 @@ def register_collector(name):
 
 def get_or_create_local_collector():
     """Provision one local-only identity without creating a bearer token."""
-    agent, _ = CollectorAgent.objects.get_or_create(
-        name="Local Development Collector",
-        defaults={"token_hash": "local-mode-no-token"},
-    )
+    try:
+        agent = CollectorAgent.objects.get(name="Local Development Collector")
+    except CollectorAgent.DoesNotExist:
+        agent = CollectorAgent.objects.create(
+            name="Local Development Collector",
+            token_hash="local-mode-no-token",
+        )
     return agent
 
 
