@@ -60,13 +60,13 @@ def runner_fingerprint(runner):
         ],
         "interval": runner.interval,
         "event": {
-            "trigger_tag": runner.detector.trigger_tag,
+            "trigger_tag": runner.detector.tag,
             "active_value": runner.detector.active_value,
-            "active_values": runner.detector.active_values,
+            "active_values": sorted(runner.detector.active_values) if runner.detector.active_values is not None else None,
             "rearm_value": runner.detector.rearm_value,
             "result_tag": runner.detector.result_tag,
-            "result_mapping": runner.detector.result_mapping,
-            "debounce_ms": runner.detector.debounce_ms,
+            "result_mapping": runner.detector.mapping,
+            "debounce_seconds": runner.detector.debounce,
         },
         "adapter": getattr(adapter_cfg, "__dict__", str(adapter_cfg)),
     }
