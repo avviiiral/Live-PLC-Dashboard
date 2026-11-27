@@ -56,10 +56,14 @@ class MockPLCAdapterTests(unittest.TestCase):
     def test_two_plcs_have_independent_simulation_clocks_and_instances(self):
         first = make_adapter("192.168.0.1")
         second = make_adapter("192.168.0.5")
+        first.started_at = 100.0
+        second.started_at = 200.0
         first.connect()
         second.connect()
-        self.assertIsNot(first, second)
-        self.assertNotEqual(first.plc_config.host, second.plc_config.host)
+        result_tag = TagConfig("result", "Result_MW3112", "MW3112", "INT")
+        with patch("collector.adapters.mock_plc.time.monotonic", return_value=105.0):
+            self.assertEqual(first.read(result_tag), 1)
+            self.assertEqual(second.read(result_tag), 0)
         first.disconnect()
         second.disconnect()
 
