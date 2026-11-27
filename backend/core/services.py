@@ -17,6 +17,15 @@ def register_collector(name):
     return obj, raw
 
 
+def get_or_create_local_collector():
+    """Create a local-only agent without generating/exposing a bearer token."""
+    agent, _ = CollectorAgent.objects.get_or_create(
+        name="Local Development Collector",
+        defaults={"token_hash": "local-mode-no-token"},
+    )
+    return agent
+
+
 def authenticate_collector(raw):
     if not raw:
         return None
@@ -61,61 +70,33 @@ def serialize_collector_configuration(agent):
         for plc in station.plcs.filter(is_enabled=True).order_by("name"):
             tags = list(plc.tags.filter(is_enabled=True).order_by("name"))
             all_tags.extend(tags)
-            station_plcs.append(
-                {
-                    "id": str(plc.id),
-                    "name": plc.name,
-                    "protocol": plc.protocol,
-                    "host": plc.host,
-                    "port": plc.port,
-                    "rack": plc.rack,
-                    "slot": plc.slot,
-                    "unit_id": plc.unit_id,
-                }
-            )
+            station_plcs.append({
+                "id": str(plc.id), "name": plc.name, "protocol": plc.protocol,
+                "host": plc.host, "port": plc.port, "rack": plc.rack,
+                "slot": plc.slot, "unit_id": plc.unit_id,
+            })
         if not station_plcs:
             continue
-
         event_config = dict(station.event_config or {})
         if not event_config.get("trigger_tag"):
             result_tag = next((tag for tag in all_tags if tag.role == "result"), None)
             if result_tag:
                 event_config = {
-                    "trigger_tag": result_tag.name,
-                    "result_tag": result_tag.name,
-                    "active_values": [1, 2],
-                    "rearm_value": 0,
-                    "result_mapping": {
-                        "0": "NOTHING",
-                        "1": "PASS",
-                        "2": "FAIL",
-                        "3": "IN_PROGRESS",
-                    },
+                    "trigger_tag": result_tag.name, "result_tag": result_tag.name,
+                    "active_values": [1, 2], "rearm_value": 0,
+                    "result_mapping": {"0": "NOTHING", "1": "PASS", "2": "FAIL", "3": "IN_PROGRESS"},
                 }
         if not event_config.get("trigger_tag"):
             continue
-
-        stations.append(
-            {
-                "station_id": str(station.id),
-                "station_name": station.name,
-                "plant_name": station.line.plant.name,
-                "line_name": station.line.name,
-                "poll_interval_seconds": 1.0,
-                "tags": [
-                    {
-                        "id": str(tag.id),
-                        "name": tag.name,
-                        "address": tag.address,
-                        "data_type": tag.data_type,
-                        "role": tag.role,
-                        "scale": tag.scale,
-                        "offset": tag.offset,
-                    }
-                    for tag in all_tags
-                ],
-                "event": event_config,
-                "plcs": station_plcs,
-            }
-        )
+        stations.append({
+            "station_id": str(station.id), "station_name": station.name,
+            "plant_name": station.line.plant.name, "line_name": station.line.name,
+            "poll_interval_seconds": 1.0,
+            "tags": [{
+                "id": str(tag.id), "name": tag.name, "address": tag.address,
+                "data_type": tag.data_type, "role": tag.role,
+                "scale": tag.scale, "offset": tag.offset,
+            } for tag in all_tags],
+            "event": event_config, "plcs": station_plcs,
+        })
     return {"stations": stations}
