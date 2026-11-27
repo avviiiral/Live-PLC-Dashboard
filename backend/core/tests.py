@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from .models import CollectorAgent, Company, PLCDevice, PLCTag, Plant, ProductionLine, Station
-from .services import register_collector
+from .services import get_or_create_local_collector, register_collector, serialize_collector_configuration
 
 
 class PlatformTests(TestCase):
@@ -45,6 +45,12 @@ class PlatformTests(TestCase):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get("/api/v1/health/").status_code, 200)
 
+    def test_local_identity_is_persistent_and_has_no_generated_secret(self):
+        first = get_or_create_local_collector()
+        second = get_or_create_local_collector()
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(first.token_hash, "local-mode-no-token")
+
     def test_remote_configuration_scopes_each_plc_and_its_own_tags(self):
         second = PLCDevice.objects.create(
             station=self.station, name="Second PLC", protocol="mock", host="127.0.0.2"
@@ -68,21 +74,38 @@ class PlatformTests(TestCase):
             [tag["name"] for tag in by_plc[str(second.id)]["tags"]], ["SecondResult"]
         )
 
-    def test_local_configuration_requires_loopback_and_local_agent(self):
+    def test_local_configuration_requires_loopback(self):
         self.client.force_authenticate(None)
-        CollectorAgent.objects.create(
-            name="Local Development Collector", token_hash="local-mode-placeholder"
-        )
+        local = get_or_create_local_collector()
+        local.assigned_stations.add(self.station)
         response = self.client.get(
             "/api/v1/collectors/configuration/",
             HTTP_X_COLLECTOR_MODE="local", REMOTE_ADDR="127.0.0.1",
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["stations"]), 1)
         denied = self.client.get(
             "/api/v1/collectors/configuration/",
             HTTP_X_COLLECTOR_MODE="local", REMOTE_ADDR="192.168.1.20",
         )
         self.assertEqual(denied.status_code, 401)
+
+    def test_unassigned_local_agent_cannot_ingest_station_event(self):
+        self.client.force_authenticate(None)
+        get_or_create_local_collector()
+        data = {
+            "id": str(uuid.uuid4()),
+            "station": str(self.station.id),
+            "plc": str(self.plc.id),
+            "occurred_at": "2026-01-01T10:00:00Z",
+            "result_status": "PASS",
+            "payload": {"Result": 1},
+        }
+        response = self.client.post(
+            "/api/v1/production/ingest/", data, format="json",
+            HTTP_X_COLLECTOR_MODE="local", REMOTE_ADDR="127.0.0.1",
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_remote_ingestion_preserves_uuid_and_is_idempotent(self):
         agent, token = self.add_remote_collector()
