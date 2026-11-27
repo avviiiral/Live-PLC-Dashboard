@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from .models import AlarmEvent, Company, PLCDevice, PLCTag, Plant, ProductionEvent, ProductionLine, Station
 from .serializers import AlarmEventSerializer, CompanySerializer, PLCDeviceSerializer, PLCTagSerializer, PlantSerializer, ProductionEventSerializer, ProductionLineSerializer, StationSerializer
-from .services import authenticate_collector, ingest_event, record_heartbeat, register_collector, serialize_collector_configuration
+from .services import authenticate_collector, get_or_create_local_collector, ingest_event, record_heartbeat, register_collector, serialize_collector_configuration
 
 
 class ManagedViewSet(viewsets.ModelViewSet):
@@ -95,9 +95,7 @@ def collector_authorized(request):
         if request.META.get("REMOTE_ADDR") not in {"127.0.0.1", "::1"}:
             return None
         from .models import CollectorAgent
-        return CollectorAgent.objects.filter(
-            is_active=True, name="Local Development Collector"
-        ).first()
+        return get_or_create_local_collector()
     return authenticate_collector(request.headers.get("X-Collector-Token", ""))
 
 
