@@ -19,22 +19,15 @@ class PlatformTests(TestCase):
         plant = Plant.objects.create(company=company, name="Plant", code="plant")
         line = ProductionLine.objects.create(plant=plant, name="Line", code="line")
         self.station = Station.objects.create(
-            line=line,
-            name="Station",
-            code="station",
+            line=line, name="Station", code="station",
             event_config={
-                "trigger_tag": "Result",
-                "result_tag": "Result",
-                "active_values": [1, 2],
-                "rearm_value": 0,
+                "trigger_tag": "Result", "result_tag": "Result",
+                "active_values": [1, 2], "rearm_value": 0,
                 "result_mapping": {"0": "NOTHING", "1": "PASS", "2": "FAIL"},
             },
         )
         self.plc = PLCDevice.objects.create(
-            station=self.station,
-            name="Mock PLC",
-            protocol="mock",
-            host="127.0.0.1",
+            station=self.station, name="Mock PLC", protocol="mock", host="127.0.0.1"
         )
         PLCTag.objects.create(
             plc=self.plc, name="Result", address="MW10", data_type="INT", role="result"
@@ -52,19 +45,27 @@ class PlatformTests(TestCase):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get("/api/v1/health/").status_code, 200)
 
-    def test_remote_configuration_is_scoped_to_assignments(self):
+    def test_remote_configuration_scopes_each_plc_and_its_own_tags(self):
+        second = PLCDevice.objects.create(
+            station=self.station, name="Second PLC", protocol="mock", host="127.0.0.2"
+        )
+        PLCTag.objects.create(
+            plc=second, name="SecondResult", address="MW22", data_type="INT", role="result"
+        )
         agent, token = self.add_remote_collector()
         self.client.force_authenticate(None)
         response = self.client.get(
-            "/api/v1/collectors/configuration/",
-            HTTP_X_COLLECTOR_TOKEN=token,
+            "/api/v1/collectors/configuration/", HTTP_X_COLLECTOR_TOKEN=token
         )
         self.assertEqual(response.status_code, 200)
+        configs = response.data["stations"]
+        self.assertEqual(len(configs), 2)
+        by_plc = {item["plcs"][0]["id"]: item for item in configs}
         self.assertEqual(
-            response.data["stations"][0]["station_id"], str(self.station.id)
+            [tag["name"] for tag in by_plc[str(self.plc.id)]["tags"]], ["Result"]
         )
         self.assertEqual(
-            response.data["stations"][0]["plcs"][0]["id"], str(self.plc.id)
+            [tag["name"] for tag in by_plc[str(second.id)]["tags"]], ["SecondResult"]
         )
 
     def test_local_configuration_requires_loopback_and_local_agent(self):
@@ -74,14 +75,12 @@ class PlatformTests(TestCase):
         )
         response = self.client.get(
             "/api/v1/collectors/configuration/",
-            HTTP_X_COLLECTOR_MODE="local",
-            REMOTE_ADDR="127.0.0.1",
+            HTTP_X_COLLECTOR_MODE="local", REMOTE_ADDR="127.0.0.1",
         )
         self.assertEqual(response.status_code, 200)
         denied = self.client.get(
             "/api/v1/collectors/configuration/",
-            HTTP_X_COLLECTOR_MODE="local",
-            REMOTE_ADDR="192.168.1.20",
+            HTTP_X_COLLECTOR_MODE="local", REMOTE_ADDR="192.168.1.20",
         )
         self.assertEqual(denied.status_code, 401)
 
@@ -90,23 +89,16 @@ class PlatformTests(TestCase):
         self.client.force_authenticate(None)
         event_id = str(uuid.uuid4())
         data = {
-            "id": event_id,
-            "station": str(self.station.id),
-            "plc": str(self.plc.id),
-            "occurred_at": "2026-01-01T10:00:00Z",
-            "result_status": "PASS",
+            "id": event_id, "station": str(self.station.id), "plc": str(self.plc.id),
+            "occurred_at": "2026-01-01T10:00:00Z", "result_status": "PASS",
             "payload": {"Result": 1},
         }
         first = self.client.post(
-            "/api/v1/production/ingest/",
-            data,
-            format="json",
+            "/api/v1/production/ingest/", data, format="json",
             HTTP_X_COLLECTOR_TOKEN=token,
         )
         second = self.client.post(
-            "/api/v1/production/ingest/",
-            data,
-            format="json",
+            "/api/v1/production/ingest/", data, format="json",
             HTTP_X_COLLECTOR_TOKEN=token,
         )
         self.assertEqual(first.status_code, 202)
