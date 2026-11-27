@@ -56,7 +56,7 @@ def record_heartbeat(agent, status, details):
 
 
 def serialize_collector_configuration(agent):
-    """Return assigned active stations, with each PLC's own enabled tags."""
+    """Return assigned active stations with per-PLC tags and configuration version."""
     stations = []
     assigned = (
         agent.assigned_stations.filter(is_active=True)
@@ -65,7 +65,6 @@ def serialize_collector_configuration(agent):
         .order_by("name")
     )
     for station in assigned:
-        plc_configs = []
         for plc in station.plcs.filter(is_enabled=True).order_by("name"):
             tags = list(plc.tags.filter(is_enabled=True).order_by("name"))
             if not tags:
@@ -87,7 +86,7 @@ def serialize_collector_configuration(agent):
                 }
             if not event_config.get("trigger_tag"):
                 continue
-            plc_configs.append(
+            stations.append(
                 {
                     "station_id": str(station.id),
                     "station_name": station.name,
@@ -121,5 +120,4 @@ def serialize_collector_configuration(agent):
                     ],
                 }
             )
-        stations.extend(plc_configs)
     return {"stations": stations}
