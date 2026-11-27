@@ -13,10 +13,10 @@ Set `COLLECTOR_MODE=lan`, backend LAN URL and one persistent machine-level token
 
 ## Runtime flow
 1. Collector reads the root `.env`.
-2. Collector requests its active assigned stations, enabled PLCs and enabled tags.
+2. Collector requests active assigned stations, enabled PLCs and enabled tags.
 3. It creates one adapter and detector per PLC.
 4. It polls, snapshots result transitions and enqueues events with stable UUIDs.
-5. Backend validates the station assignment and PLC/station relationship, persists idempotently and broadcasts new events.
+5. Backend validates station assignment and PLC/station relationship, persists idempotently and broadcasts new events.
 6. Collector periodically refreshes assignments and applies additions/removals without editing JSON.
 
 The backend does not need direct routing to PLC private IPs. Collectors initiate outbound requests. Production should use TLS, PostgreSQL and a production-capable Channels layer.
