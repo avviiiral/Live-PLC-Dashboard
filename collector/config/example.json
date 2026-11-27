@@ -1,0 +1,59 @@
+{
+  "backend_url": "http://127.0.0.1:8000",
+  "collector_token": "SET_AFTER_REGISTRATION",
+  "queue_path": "collector/data/middle-testing-queue.sqlite3",
+  "poll_interval_seconds": 1.0,
+  "plant_name": "BGLIIN-Waluj",
+  "line_name": "20 - Amp",
+  "stations": [
+    {
+      "station_name": "Middle Testing",
+      "station_id": "REPLACE_WITH_MIDDLE_TESTING_STATION_UUID",
+      "tags": [
+        {"id": "coil-short", "name": "Coil_Short_MW3008", "address": "MW3008", "data_type": "INT"},
+        {"id": "continuity-on", "name": "Continuity_ON_MW412", "address": "MW412", "data_type": "INT"},
+        {"id": "aging-test", "name": "Aging_Test_MW410", "address": "MW410", "data_type": "INT"},
+        {"id": "coil-to-cont-com", "name": "Coil_to_Cont_COM_MW4004", "address": "MW4004", "data_type": "INT"},
+        {"id": "coil-to-cont-no", "name": "Coil_to_Cont_NO_MW4002", "address": "MW4002", "data_type": "INT"},
+        {"id": "diode-test", "name": "Diode_Test_MW5026", "address": "MW5026", "data_type": "INT"},
+        {"id": "start-time", "name": "Start_Time_MW438", "address": "MW438", "data_type": "INT"},
+        {"id": "pull-in", "name": "Pull_In_MW422", "address": "MW422", "data_type": "INT"},
+        {"id": "drop-out-v", "name": "Drop_Out_V_MW424", "address": "MW424", "data_type": "INT"},
+        {"id": "coil-resistance", "name": "Coil_Resistance_MW426", "address": "MW426", "data_type": "INT"},
+        {"id": "result", "name": "Result_MW3112", "address": "MW3112", "data_type": "INT", "role": "result"}
+      ],
+      "event": {
+        "trigger_tag": "Result_MW3112",
+        "active_values": [1, 2],
+        "rearm_value": 0,
+        "debounce_ms": 0,
+        "result_mapping": {
+          "0": "NOTHING",
+          "1": "PASS",
+          "2": "FAIL",
+          "3": "IN_PROGRESS"
+        }
+      },
+      "plcs": [
+        {
+          "id": "REPLACE_WITH_PLC_1_DATABASE_UUID",
+          "name": "PLC_1_EtherLink1",
+          "protocol": "s7",
+          "host": "192.168.0.1",
+          "port": 102,
+          "rack": 0,
+          "slot": 1
+        },
+        {
+          "id": "REPLACE_WITH_PLC_2_DATABASE_UUID",
+          "name": "PLC_2_EtherLink2",
+          "protocol": "s7",
+          "host": "192.168.0.5",
+          "port": 102,
+          "rack": 0,
+          "slot": 1
+        }
+      ]
+    }
+  ]
+}
