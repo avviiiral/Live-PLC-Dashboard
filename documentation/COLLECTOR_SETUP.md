@@ -8,7 +8,7 @@ Station, PLC and tag configuration is stored in Django database records. Do not 
 2. Install backend and collector requirements.
 3. Set `COLLECTOR_MODE=local` and `COLLECTOR_API_BASE_URL=http://127.0.0.1:8000`.
 4. Run migrations and start Django.
-5. Create a CollectorAgent named **Local Development Collector** once and assign this machine's stations.
+5. Run `python backend\\manage.py setup_local_collector --all-active` once to create the tokenless local collector and assign all active stations. To assign selected stations, use `--station <station-uuid>`; repeat the option as needed.
 6. Create PLCDevice and PLCTag records. Configure station `event_config` with `trigger_tag`, `active_values`, `rearm_value`, and `result_mapping`.
 7. Run `python -m collector.main`. It syncs configuration periodically; new/removed PLCs are applied without editing JSON.
 
