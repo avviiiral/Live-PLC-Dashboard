@@ -11,7 +11,7 @@ python backend\manage.py migrate
 python backend\manage.py createsuperuser
 ```
 
-Edit the single root `.env`. Use `COLLECTOR_MODE=local` when backend and collector share a machine. Use `COLLECTOR_MODE=lan` on a separate factory PC, with backend LAN URL and that machine's persistent token.
+Edit the single root `.env`. For same-computer collection, run `python backend\\manage.py setup_local_collector --all-active` once after creating your station records. Use `COLLECTOR_MODE=local` when backend and collector share a machine. Use `COLLECTOR_MODE=lan` on a separate factory PC, with backend LAN URL and that machine's persistent token.
 
 Terminal 1 — backend:
 ```powershell
