@@ -1,0 +1,7 @@
+{
+ "version":1,"newProjectRoot":"projects",
+ "projects":{"live-plc-dashboard":{"projectType":"application","root":"","sourceRoot":"src","prefix":"app","architect":{
+  "build":{"builder":"@angular-devkit/build-angular:application","options":{"outputPath":"dist/live-plc-dashboard","index":"src/index.html","browser":"src/main.ts","polyfills":["zone.js"],"tsConfig":"tsconfig.app.json","assets":[],"styles":["src/styles.css"]},"configurations":{"production":{"outputHashing":"all"},"development":{"optimization":false,"sourceMap":true}},"defaultConfiguration":"production"},
+  "serve":{"builder":"@angular-devkit/build-angular:dev-server","configurations":{"development":{"buildTarget":"live-plc-dashboard:build:development"},"production":{"buildTarget":"live-plc-dashboard:build:production"}},"defaultConfiguration":"development"}
+ }}
+}
