@@ -23,8 +23,8 @@ Configure station event_config:
 }
 ```
 
-Create 11 INT tags on each PLC: Coil_Short_MW3008 (MW3008), Continuity_ON_MW412 (MW412), Aging_Test_MW410 (MW410), Coil_to_Cont_COM_MW4004 (MW4004), Coil_to_Cont_NO_MW4002 (MW4002), Diode_Test_MW5026 (MW5026), Start_Time_MW438 (MW438), Pull_In_MW422 (MW422), Drop_Out_V_MW424 (MW424), Coil_Resistance_MW426 (MW426), Result_MW3112 (MW3112). Set the Result tag role to `result`.
+Create 11 INT tags on each PLC: Coil_Short_MW3008 (MW3008), Continuity_ON_MW412 (MW412), Aging_Test_MW410 (MW410), Coil_to_Cont_COM_MW4004 (MW4004), Coil_to_Cont_NO_MW4002 (MW4002), Diode_Test_MW5026 (MW5026), Start_Time_MW438 (MW438), Pull_In_MW422 (MW422), Drop_Out_V_MW424 (MW424), Coil_Resistance_MW426 (MW426), Result_MW3112 (MW3112). Set Result tag role to `result`.
 
-The same tag map on EtherLink2 is an assumption from the supplied EtherLink1 logger, not hardware-verified. Confirm offsets and data types before enabling the second PLC.
+The same tag map on EtherLink2 is an assumption from EtherLink1 logger, not hardware-verified. Confirm offsets and data types before enabling the second PLC.
 
 Siemens MW addresses are byte offsets, read as two-byte big-endian signed INT values. The collector is read-only. Verify S7 permissions, rack/slot, access protection and routing at the plant.
