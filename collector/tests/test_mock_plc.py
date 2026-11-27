@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from collector.adapters.mock_plc import MockPLCAdapter
 from collector.core.types import PLCConfig, TagConfig
@@ -19,11 +20,15 @@ TAG_NAMES = [
 ]
 
 
+def make_adapter(host="192.168.0.1"):
+    return MockPLCAdapter(
+        plc_config=PLCConfig("mock", host, 102, 0, 1)
+    )
+
+
 class MockPLCAdapterTests(unittest.TestCase):
     def test_simulator_provides_every_middle_testing_tag_as_int(self):
-        adapter = MockPLCAdapter(
-            plc_config=PLCConfig("mock", "192.168.0.1", 102, 0, 1)
-        )
+        adapter = make_adapter()
         adapter.connect()
         try:
             values = {
@@ -36,16 +41,25 @@ class MockPLCAdapterTests(unittest.TestCase):
         finally:
             adapter.disconnect()
 
-    def test_each_plc_adapter_has_independent_simulation_clock(self):
-        first = MockPLCAdapter(
-            plc_config=PLCConfig("mock", "192.168.0.1", 102, 0, 1)
-        )
-        second = MockPLCAdapter(
-            plc_config=PLCConfig("mock", "192.168.0.5", 102, 0, 1)
-        )
+    def test_result_sequence_matches_logger_rearm_and_capture_values(self):
+        adapter = make_adapter()
+        adapter.started_at = 100.0
+        adapter.connect()
+        result_tag = TagConfig("result", "Result_MW3112", "MW3112", "INT")
+
+        expected = [(100.0, 0), (103.0, 3), (105.0, 1), (107.0, 0), (115.0, 2)]
+        for clock_value, expected_result in expected:
+            with patch("collector.adapters.mock_plc.time.monotonic", return_value=clock_value):
+                self.assertEqual(adapter.read(result_tag), expected_result)
+        adapter.disconnect()
+
+    def test_two_plcs_have_independent_simulation_clocks_and_instances(self):
+        first = make_adapter("192.168.0.1")
+        second = make_adapter("192.168.0.5")
         first.connect()
         second.connect()
-        self.assertIsNot(first.started_at, second.started_at)
+        self.assertIsNot(first, second)
+        self.assertNotEqual(first.plc_config.host, second.plc_config.host)
         first.disconnect()
         second.disconnect()
 
