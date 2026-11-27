@@ -45,7 +45,9 @@ npm start
 
 ### Collector
 
-After creating the hierarchy, registering a collector as a staff user, assigning it stations and supplying real PLC/tag IDs in its configuration:
+The repository now includes a dual-Siemens-S7 sample for **BGLIIN-Waluj → 20 - Amp → Middle Testing**. Review [PLC Configuration](documentation/PLC_CONFIGURATION.md) before enabling it.
+
+After creating the hierarchy, two PLC records, their tags and a collector assigned to the station, replace the UUID placeholders in `collector/config/example.json`:
 
 ```powershell
 python -m pip install -r collector\requirements.txt
@@ -54,6 +56,10 @@ $env:COLLECTOR_TOKEN = "<provisioned-token>"
 $env:COLLECTOR_CONFIG_PATH = "collector/config/example.json"
 python -m collector.main
 ```
+
+The two reference PLC addresses are `192.168.0.1` and `192.168.0.5`, rack 0 / slot 1. Each PLC has its own polling connection and independent event re-arm state. The collector reads marker-memory words including `MW3112`; it does not write to the PLCs.
+
+**Hardware warning:** the supplied tag map was shown for EtherLink1. The sample assumes the same MW offsets and data types on EtherLink2. Verify this against the HMI/PLC project and confirm S7 access, network routing, rack and slot before connecting. The addresses and hardware compatibility have not been tested from this repository environment.
 
 Do not commit the provisioned token or real factory network configuration.
 
@@ -82,12 +88,12 @@ The Angular history page renders these records in a station-filtered, server-pag
 
 ```powershell
 python backend\manage.py test
-python -m unittest discover -s collector/tests
+python -m unittest discover -s collector/tests -v
 cd frontend
 npm test
 ```
 
-Tests are included as a starting suite. Run them in your local environment before relying on the software. This repository update has not been executed against a local Python/Node/PostgreSQL runtime as part of this GitHub-only session.
+Run the tests in your local environment before relying on the software. GitHub-only edits in this session have not been executed against your Windows PLC network or local Python/Node/PostgreSQL runtime.
 
 ## Implementation status and limitations
 
@@ -97,21 +103,23 @@ The current branch provides a development foundation, not a certified or product
 - Normalized company → plant → line → station → PLC → tag models and basic REST CRUD APIs.
 - Collector token hashing, station assignments and idempotent production event ingestion.
 - Mock, Siemens S7 and Modbus TCP adapter implementations.
-- Configurable trigger edge/debounce/result mapping foundation.
-- Persistent SQLite collector event queue and retry loop.
+- Siemens S7 marker-memory word reads (MW) and DB address reads.
+- Multiple independent PLC collector runners under one station.
+- Configurable numeric PASS/FAIL capture after a per-PLC result register returns to zero.
+- Persistent SQLite collector event queue with explicit connection cleanup.
 - Basic Channels station event consumer.
-- Angular overview, production history table and system guidance.
+- Angular overview and production history table.
 - SQLite/PostgreSQL settings, Dockerfiles, Compose and technical documentation.
 
 **Still required before production**
-- End-to-end mock PLC event flow and complete acceptance tests.
+- End-to-end mock and physical PLC acceptance tests.
 - Automated migrations committed to the repository and verification against both database engines.
 - Collector configuration delivery, token rotation and provisioning workflow improvements.
 - Full station-wise and tenant-level authorization for REST and WebSocket subscribers.
 - Proper login UI, route guards, user/role administration and full hierarchy management screens.
 - Tag telemetry ingestion, alarm lifecycle, shift/report aggregates, CSV/XLSX export and advanced charts.
 - Redis Channels configuration, rate limiting, auditing, secure production settings and deployment validation.
-- Verification of S7/Modbus library APIs and address/data representation against physical PLC hardware.
+- Verification of S7 library APIs, marker offsets, signed/unsigned representation and HMI tag equivalence on both physical PLCs.
 
 Physical PLC connectivity is **hardware-unverified**. PostgreSQL and Angular production build compatibility must be tested in an environment with those services available.
 
