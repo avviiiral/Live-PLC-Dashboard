@@ -45,7 +45,7 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
 
     adapters = {
-        "mock": lambda plc_config: MockPLCAdapter(),
+        "mock": lambda plc_config: MockPLCAdapter(plc_config=plc_config),
         "s7": lambda plc_config: SiemensS7Adapter(plc_config),
         "modbus_tcp": lambda plc_config: ModbusTCPAdapter(plc_config),
     }
