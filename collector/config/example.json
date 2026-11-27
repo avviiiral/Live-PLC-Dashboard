@@ -2,7 +2,7 @@
   "backend_url": "http://127.0.0.1:8000",
   "collector_token": "SET_AFTER_REGISTRATION",
   "queue_path": "collector/data/middle-testing-queue.sqlite3",
-  "poll_interval_seconds": 1.0,
+  "poll_interval_seconds": 1,
   "plant_name": "BGLIIN-Waluj",
   "line_name": "20 - Amp",
   "stations": [
@@ -80,7 +80,10 @@
       ],
       "event": {
         "trigger_tag": "Result_MW3112",
-        "active_values": [1, 2],
+        "active_values": [
+          1,
+          2
+        ],
         "rearm_value": 0,
         "debounce_ms": 0,
         "result_mapping": {
@@ -88,7 +91,8 @@
           "1": "PASS",
           "2": "FAIL",
           "3": "IN_PROGRESS"
-        }
+        },
+        "result_tag": "Result_MW3112"
       },
       "plcs": [
         {
