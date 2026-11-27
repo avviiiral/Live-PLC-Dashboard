@@ -18,7 +18,7 @@ def register_collector(name):
 
 
 def get_or_create_local_collector():
-    """Create a local-only agent without generating/exposing a bearer token."""
+    """Provision one local-only identity without creating a bearer token."""
     agent, _ = CollectorAgent.objects.get_or_create(
         name="Local Development Collector",
         defaults={"token_hash": "local-mode-no-token"},
@@ -56,7 +56,7 @@ def record_heartbeat(agent, status, details):
 
 
 def serialize_collector_configuration(agent):
-    """Build active assigned station/PLC/tag configuration from database rows."""
+    """Return assigned active stations, with each PLC's own enabled tags."""
     stations = []
     assigned = (
         agent.assigned_stations.filter(is_active=True)
@@ -65,38 +65,61 @@ def serialize_collector_configuration(agent):
         .order_by("name")
     )
     for station in assigned:
-        station_plcs = []
-        all_tags = []
+        plc_configs = []
         for plc in station.plcs.filter(is_enabled=True).order_by("name"):
             tags = list(plc.tags.filter(is_enabled=True).order_by("name"))
-            all_tags.extend(tags)
-            station_plcs.append({
-                "id": str(plc.id), "name": plc.name, "protocol": plc.protocol,
-                "host": plc.host, "port": plc.port, "rack": plc.rack,
-                "slot": plc.slot, "unit_id": plc.unit_id,
-            })
-        if not station_plcs:
-            continue
-        event_config = dict(station.event_config or {})
-        if not event_config.get("trigger_tag"):
-            result_tag = next((tag for tag in all_tags if tag.role == "result"), None)
-            if result_tag:
+            if not tags:
+                continue
+            event_config = dict(station.event_config or {})
+            result_tag = next((tag for tag in tags if tag.role == "result"), None)
+            if not event_config.get("trigger_tag") and result_tag:
                 event_config = {
-                    "trigger_tag": result_tag.name, "result_tag": result_tag.name,
-                    "active_values": [1, 2], "rearm_value": 0,
-                    "result_mapping": {"0": "NOTHING", "1": "PASS", "2": "FAIL", "3": "IN_PROGRESS"},
+                    "trigger_tag": result_tag.name,
+                    "result_tag": result_tag.name,
+                    "active_values": [1, 2],
+                    "rearm_value": 0,
+                    "result_mapping": {
+                        "0": "NOTHING",
+                        "1": "PASS",
+                        "2": "FAIL",
+                        "3": "IN_PROGRESS",
+                    },
                 }
-        if not event_config.get("trigger_tag"):
-            continue
-        stations.append({
-            "station_id": str(station.id), "station_name": station.name,
-            "plant_name": station.line.plant.name, "line_name": station.line.name,
-            "poll_interval_seconds": 1.0,
-            "tags": [{
-                "id": str(tag.id), "name": tag.name, "address": tag.address,
-                "data_type": tag.data_type, "role": tag.role,
-                "scale": tag.scale, "offset": tag.offset,
-            } for tag in all_tags],
-            "event": event_config, "plcs": station_plcs,
-        })
+            if not event_config.get("trigger_tag"):
+                continue
+            plc_configs.append(
+                {
+                    "station_id": str(station.id),
+                    "station_name": station.name,
+                    "plant_name": station.line.plant.name,
+                    "line_name": station.line.name,
+                    "poll_interval_seconds": 1.0,
+                    "tags": [
+                        {
+                            "id": str(tag.id),
+                            "name": tag.name,
+                            "address": tag.address,
+                            "data_type": tag.data_type,
+                            "role": tag.role,
+                            "scale": tag.scale,
+                            "offset": tag.offset,
+                        }
+                        for tag in tags
+                    ],
+                    "event": event_config,
+                    "plcs": [
+                        {
+                            "id": str(plc.id),
+                            "name": plc.name,
+                            "protocol": plc.protocol,
+                            "host": plc.host,
+                            "port": plc.port,
+                            "rack": plc.rack,
+                            "slot": plc.slot,
+                            "unit_id": plc.unit_id,
+                        }
+                    ],
+                }
+            )
+        stations.extend(plc_configs)
     return {"stations": stations}
