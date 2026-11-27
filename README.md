@@ -1,275 +1,135 @@
-# Live PLC Dashboard – Industrial IoT Platform
+# Live PLC Dashboard
 
-A modern Industrial Internet of Things (IIoT) platform for real-time PLC monitoring, production tracking, machine health monitoring, and industrial data analytics.
+Industrial IoT platform foundation for configurable plant hierarchy, factory-side PLC collection, production-event tracking and manufacturing monitoring.
 
-The platform is designed to connect factory-floor PLCs with a centralized backend and a real-time web dashboard. It supports multiple companies, plants, production lines, stations, PLC devices, and configurable PLC tags.
+## Architecture
 
-## Project Overview
+- **Angular frontend** — dashboard overview and paginated production history.
+- **Django backend** — configuration APIs, authentication, normalized persistence, collector ingestion and WebSocket event broadcasting.
+- **Local PLC collector** — factory-network polling, modular adapters, event detection and persistent offline event queue.
 
-Live PLC Dashboard aims to provide a centralized solution for monitoring industrial production processes.
+The collector initiates outbound communication to the backend. The central backend does not need direct access to internal PLC network addresses.
 
-The platform consists of three independent components:
+## Technology
 
-1. **Angular Frontend** – Industrial monitoring dashboard and configuration interface.
-2. **Django Backend** – Central API, authentication, database management, telemetry processing, and real-time communication.
-3. **Local PLC Collector** – Connects to PLCs inside the factory network and securely transmits collected data to the backend.
+Angular 19 · TypeScript · Django · Django REST Framework · Django Channels · SQLite / PostgreSQL · Siemens S7 · Modbus TCP · Mock PLC.
 
-A key architectural principle is that the central backend does not need direct access to factory PLC IP addresses. The local collector initiates communication with the backend.
+## Repository structure
 
-## Technology Stack
+- `backend/` — Django service, domain models, API and Channels consumer.
+- `frontend/` — Angular application.
+- `collector/` — independent PLC collector and protocol adapters.
+- `documentation/` — architecture, database, PLC, API, deployment and setup guides.
 
-### Frontend
-- Angular
-- TypeScript
-- Angular Router
-- RxJS
-- Reactive Forms
-- Angular Material
-- ECharts / Chart.js
-- WebSockets
+## Windows quick start
 
 ### Backend
-- Python
-- Django
-- Django REST Framework
-- Django Channels
-- ASGI / Daphne
-- REST APIs
-- WebSockets
 
-### Databases
-- SQLite – Local development and small installations.
-- PostgreSQL – Production deployments and larger installations.
-
-### PLC Communication
-- Siemens S7
-- Modbus TCP
-- Mock PLC Simulator
-
-## System Architecture
-
-```mermaid
-flowchart TD
-    PLC[Industrial PLCs]
-    Collector[Local PLC Collector]
-    Backend[Django Central Backend]
-    DB[(SQLite / PostgreSQL)]
-    Frontend[Angular Dashboard]
-
-    PLC <-->|Local PLC Communication| Collector
-    Collector -->|Secure Outbound API| Backend
-    Backend <--> DB
-    Frontend <-->|REST API / WebSocket| Backend
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r backend\requirements.txt
+Copy-Item .env.example .env
+python backend\manage.py migrate
+python backend\manage.py createsuperuser
+python backend\manage.py runserver 0.0.0.0:8000
 ```
 
-## Plant and Station Hierarchy
+### Frontend
 
-The application follows a configurable industrial hierarchy:
-
-```text
-Company
-  └── Plant
-       └── Production Line
-            └── Station
-                 └── PLC Device
-                      └── PLC Tags
+```powershell
+cd frontend
+npm install
+npm start
 ```
 
-The system is designed to support multiple companies, plants, production lines, stations, PLCs, and tags without hardcoding station-specific configurations.
+### Collector
 
-## Key Functional Areas
+After creating the hierarchy, registering a collector as a staff user, assigning it stations and supplying real PLC/tag IDs in its configuration:
 
-### 1. Plant Management
-- Company management.
-- Plant management.
-- Production line management.
-- Station management.
-- PLC device configuration.
-
-### 2. PLC Tag Configuration
-- Configurable PLC addresses.
-- Data types and engineering units.
-- Tag polling intervals.
-- Scaling and offsets.
-- Production trigger configuration.
-- Result status mapping.
-
-### 3. Live Monitoring
-- PLC connection status.
-- Collector connection status.
-- Machine running and idle status.
-- Live PLC tag values.
-- Production counters.
-- PASS/FAIL monitoring.
-- Active alarms.
-- Real-time production events.
-
-### 4. Production Tracking
-- Station-wise production records.
-- Production event detection.
-- PASS/FAIL classification.
-- Historical production records.
-- Production trends.
-- Hourly and daily production reports.
-- Shift-wise analytics.
-
-### 5. Excel-Like Production Data
-
-Production records will be available through a station-specific tabular reporting interface.
-
-Example:
-
-| Timestamp | PLC Name | Result Status | Output | Torque | Pressure |
-|---|---|---|---|---|---|
-| 2026-01-01 10:00:00 | Middle Testing PLC | PASS | 1 | 10.5 | 4.2 |
-| 2026-01-01 10:00:05 | Middle Testing PLC | FAIL | 1 | 9.2 | 3.8 |
-
-Columns will be generated from the configured station tags.
-
-The intended database architecture uses normalized production records as the canonical source of truth, with station-specific reporting tables or views where appropriate.
-
-### 6. Local PLC Collector
-- Modular PLC communication adapters.
-- Siemens S7 support.
-- Modbus TCP support.
-- Mock PLC simulation.
-- Configurable tag polling.
-- Production event detection.
-- Persistent offline event queue.
-- Automatic reconnection.
-- Retry mechanisms.
-- Collector heartbeat and health monitoring.
-
-### 7. Security
-- User authentication.
-- Role-based authorization.
-- Secure collector authentication.
-- Hashed collector credentials.
-- Environment-based configuration.
-- HTTPS support for production.
-- Audit logging.
-- Protected PLC configuration.
-
-## Database Architecture
-
-The planned database entities include:
-
-- Company
-- Plant
-- ProductionLine
-- Station
-- PLCDevice
-- PLCTag
-- CollectorAgent
-- CollectorHeartbeat
-- TagReading
-- ProductionEvent
-- User
-- Role
-- AuditLog
-- AlarmEvent
-
-Both SQLite and PostgreSQL are supported design targets through Django's ORM.
-
-## Project Structure
-
-The intended high-level organization is:
-
-```text
-Live-PLC-Dashboard/
-│
-├── backend/
-│   ├── config/
-│   ├── apps/
-│   ├── api/
-│   ├── requirements.txt
-│   └── manage.py
-│
-├── frontend/
-│   ├── src/
-│   ├── angular.json
-│   └── package.json
-│
-├── collector/
-│   ├── adapters/
-│   ├── communication/
-│   ├── core/
-│   ├── events/
-│   ├── services/
-│   ├── storage/
-│   └── main.py
-│
-├── documentation/
-│   ├── ARCHITECTURE.md
-│   ├── DATABASE_DESIGN.md
-│   ├── PLC_CONFIGURATION.md
-│   ├── COLLECTOR_SETUP.md
-│   ├── API_REFERENCE.md
-│   ├── REALTIME_COMMUNICATION.md
-│   ├── DEPLOYMENT.md
-│   ├── WINDOWS_SETUP.md
-│   └── TROUBLESHOOTING.md
-│
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-└── README.md
+```powershell
+python -m pip install -r collector\requirements.txt
+$env:COLLECTOR_API_BASE_URL = "http://127.0.0.1:8000"
+$env:COLLECTOR_TOKEN = "<provisioned-token>"
+$env:COLLECTOR_CONFIG_PATH = "collector/config/example.json"
+python -m collector.main
 ```
 
-## Development and Deployment Goals
+Do not commit the provisioned token or real factory network configuration.
 
-The platform is intended to support:
+## Database
 
-- Local Windows development.
-- SQLite-based development environments.
-- PostgreSQL production deployments.
-- Docker-based deployment.
-- Independent collector execution on factory computers.
-- Secure communication between collectors and the central backend.
-- Mock PLC-based development without physical hardware.
+SQLite is the default local database. For PostgreSQL set `DB_ENGINE=postgresql` and configure `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` and `POSTGRES_PORT`.
 
-## Testing Strategy
+Copy `.env.example` to `.env` and replace sample values. The real `.env`, database files and local collector queue are ignored by Git.
 
-The project will include:
+## API and real-time endpoints
 
-- Backend unit and integration tests.
-- REST API tests.
-- Database compatibility tests.
-- Collector adapter tests.
-- Mock PLC simulation tests.
-- Production event detection tests.
-- Duplicate event prevention tests.
-- Offline queue and retry tests.
-- WebSocket tests.
-- Angular component and service tests.
-- Frontend production build verification.
+- REST API base: `/api/v1/`
+- OpenAPI schema: `/api/schema/`
+- Swagger UI: `/api/docs/`
+- Station WebSocket: `/ws/stations/<station-uuid>/`
 
-## Project Status
+The API currently includes hierarchy CRUD endpoints, collector registration/heartbeat, production event ingestion, paginated production history, alarms and dashboard aggregate counts.
 
-This repository is the starting point for a new IIoT platform implementation.
+## Excel-like production records
 
-Features, hardware integrations, database compatibility, and end-to-end workflows must be verified through actual implementation and testing before being considered production-ready.
+`ProductionEvent` is the canonical source of truth. Its JSON payload snapshots the configured tag values at event time. Historical payloads therefore remain intact when station tag configuration changes.
 
-Physical PLC integrations will require validation against the relevant hardware and network configuration.
+The Angular history page renders these records in a station-filtered, server-paginated table. Dynamic per-station SQL tables are intentionally avoided: runtime DDL increases schema migration and SQLite/PostgreSQL portability risks without improving the canonical record.
 
-## Engineering Principles
+## Tests
 
-- Clean architecture and separation of concerns.
-- Configurable plant and station hierarchy.
-- Reliable production data persistence.
-- Idempotent production event ingestion.
-- Secure collector-to-backend communication.
-- SQLite and PostgreSQL compatibility.
-- Typed and maintainable code.
-- Explicit error handling and structured logging.
-- Comprehensive testing and documentation.
+```powershell
+python backend\manage.py test
+python -m unittest discover -s collector/tests
+cd frontend
+npm test
+```
+
+Tests are included as a starting suite. Run them in your local environment before relying on the software. This repository update has not been executed against a local Python/Node/PostgreSQL runtime as part of this GitHub-only session.
+
+## Implementation status and limitations
+
+The current branch provides a development foundation, not a certified or production-hardened SCADA product.
+
+**Implemented in source**
+- Normalized company → plant → line → station → PLC → tag models and basic REST CRUD APIs.
+- Collector token hashing, station assignments and idempotent production event ingestion.
+- Mock, Siemens S7 and Modbus TCP adapter implementations.
+- Configurable trigger edge/debounce/result mapping foundation.
+- Persistent SQLite collector event queue and retry loop.
+- Basic Channels station event consumer.
+- Angular overview, production history table and system guidance.
+- SQLite/PostgreSQL settings, Dockerfiles, Compose and technical documentation.
+
+**Still required before production**
+- End-to-end mock PLC event flow and complete acceptance tests.
+- Automated migrations committed to the repository and verification against both database engines.
+- Collector configuration delivery, token rotation and provisioning workflow improvements.
+- Full station-wise and tenant-level authorization for REST and WebSocket subscribers.
+- Proper login UI, route guards, user/role administration and full hierarchy management screens.
+- Tag telemetry ingestion, alarm lifecycle, shift/report aggregates, CSV/XLSX export and advanced charts.
+- Redis Channels configuration, rate limiting, auditing, secure production settings and deployment validation.
+- Verification of S7/Modbus library APIs and address/data representation against physical PLC hardware.
+
+Physical PLC connectivity is **hardware-unverified**. PostgreSQL and Angular production build compatibility must be tested in an environment with those services available.
+
+## Documentation
+
+Start with:
+- [Architecture](documentation/ARCHITECTURE.md)
+- [Database design](documentation/DATABASE_DESIGN.md)
+- [PLC configuration](documentation/PLC_CONFIGURATION.md)
+- [Collector setup](documentation/COLLECTOR_SETUP.md)
+- [API reference](documentation/API_REFERENCE.md)
+- [Real-time communication](documentation/REALTIME_COMMUNICATION.md)
+- [Windows setup](documentation/WINDOWS_SETUP.md)
+- [Deployment](documentation/DEPLOYMENT.md)
+- [Troubleshooting](documentation/TROUBLESHOOTING.md)
 
 ## Repository
 
-**GitHub:** https://github.com/avviiiral/Live-PLC-Dashboard
+https://github.com/avviiiral/Live-PLC-Dashboard
 
-**Development branch:** `feature/live-plc-dashboard-platform`
-
----
-
-*Building a reliable, scalable, and configurable Industrial IoT platform for real-time manufacturing intelligence.*
+Development branch: `feature/live-plc-dashboard-platform`
