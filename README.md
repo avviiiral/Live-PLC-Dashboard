@@ -33,7 +33,7 @@ npm start
 ```
 
 ## Database-driven configuration
-Create companies, plants, lines, stations, PLC devices and tags in Django. Assign stations to the local collector or a remote machine's CollectorAgent. Station/PLC/tag definitions come from the database, not JSON. Collector sync refreshes additions and removals periodically.
+Create companies, plants, lines, stations, PLC devices and tags in Django. In local mode, run `python backend\\manage.py setup_local_collector --all-active` once to assign all active stations. In LAN mode, assign stations to the remote machine's CollectorAgent. Station/PLC/tag definitions come from the database, not JSON. Collector sync refreshes additions and removals periodically.
 
 Local mode sends no token and is accepted only from loopback. Separate LAN collectors authenticate with one persistent machine identity; adding a station never requires generating another token. Protect `.env`; never commit it. `.env.example` is the safe template.
 
