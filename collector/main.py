@@ -44,7 +44,6 @@ def build_runners(config, api, queue):
 
 
 def runner_fingerprint(runner):
-    """Fingerprint effective config, including values not stored on detector."""
     adapter_cfg = getattr(runner.adapter, "cfg", None) or getattr(
         runner.adapter, "plc_config", None
     )
@@ -71,9 +70,7 @@ def runner_fingerprint(runner):
         },
         "adapter": getattr(adapter_cfg, "__dict__", str(adapter_cfg)),
     }
-    return hashlib.sha256(
-        json.dumps(data, sort_keys=True, default=str).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def main():
@@ -100,19 +97,24 @@ def main():
         fingerprints.pop(key, None)
         runner.stop_event.set()
         thread.join(timeout=5)
+        if thread.is_alive():
+            raise RuntimeError(f"PLC worker did not stop cleanly: {key}")
         runner.adapter.disconnect()
 
     def start_runner(key, runner):
         runner.stop_event = threading.Event()
         thread = threading.Thread(
-            target=runner.run, args=(runner.stop_event,),
-            daemon=True, name=f"collector-{key[1]}",
+            target=runner.run,
+            args=(runner.stop_event,),
+            daemon=True,
+            name=f"collector-{key[1]}",
         )
         runners[key], threads[key] = runner, thread
         fingerprints[key] = runner_fingerprint(runner)
         thread.start()
 
     def sync_configuration():
+        # If config fetch/build fails, no running PLC workers are modified.
         desired = build_runners(api.configuration(), api, queue)
         desired_fingerprints = {
             key: runner_fingerprint(runner) for key, runner in desired.items()
@@ -129,19 +131,20 @@ def main():
 
     logging.info("Starting collector in %s mode", mode)
     backoff = 1
-    while not stop.is_set():
-        try:
-            count = sync_configuration()
-            api.heartbeat({"plcs": count, "queue_size": queue.size(), "mode": mode})
-            backoff = 1
-            stop.wait(sync_interval)
-        except Exception:
-            logging.exception("Collector configuration sync/heartbeat failed")
-            stop.wait(backoff)
-            backoff = min(backoff * 2, 30)
-
-    for key in list(runners):
-        stop_runner(key)
+    try:
+        while not stop.is_set():
+            try:
+                count = sync_configuration()
+                api.heartbeat({"plcs": count, "queue_size": queue.size(), "mode": mode})
+                backoff = 1
+                stop.wait(sync_interval)
+            except Exception:
+                logging.exception("Collector configuration sync/heartbeat failed")
+                stop.wait(backoff)
+                backoff = min(backoff * 2, 30)
+    finally:
+        for key in list(runners):
+            stop_runner(key)
 
 
 if __name__ == "__main__":
