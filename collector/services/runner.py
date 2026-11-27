@@ -17,6 +17,7 @@ class StationRunner:
         self.api = api
         self.queue = queue
         self.interval = max(interval, 0.02)
+        self.stop_event = None
         self.detector = ProductionEventDetector(
             trigger_tag=event_config["trigger_tag"],
             active_value=event_config.get("active_value", True),
@@ -39,7 +40,6 @@ class StationRunner:
     def poll_once(self):
         if not self.adapter.is_connected():
             self.adapter.connect()
-
         values = {tag.name: self.adapter.read(tag) for tag in self.tags}
         event = self.detector.update(values)
         if event:
@@ -56,7 +56,9 @@ class StationRunner:
                 self.flush()
                 delay = 1
             except Exception:
-                logger.exception("PLC poll failed")
+                logger.exception(
+                    "PLC poll failed for station=%s plc=%s", self.station, self.plc
+                )
                 self.adapter.disconnect()
                 stop.wait(min(delay, 30))
                 delay = min(delay * 2, 30)
